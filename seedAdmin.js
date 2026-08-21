@@ -6,8 +6,8 @@ const User = require("./models/User");
 const seedAdmin = async () => {
   await connectDB();
 
-  const email = "admin@examos.com";
-  const password = "Admin@123";
+  const email = "prachibhise@gmail.com";
+  const password = "prachi@123";
 
   const existing = await User.findOne({ email });
 
@@ -36,3 +36,5 @@ seedAdmin().catch((error) => {
   console.error(error);
   process.exit(1);
 });
+//Email: prachibhise@gmail.com
+//Password: prachi@123

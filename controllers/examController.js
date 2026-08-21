@@ -1,351 +1,164 @@
-const mongoose = require("mongoose");
 const Exam = require("../models/Exam");
-const Question = require("../models/Question");
-const Attempt = require("../models/Attempt");
-const User = require("../models/User");
+const Result = require("../models/Result");
 
-const validObjectIds = (ids) =>
-  Array.isArray(ids) &&
-  ids.every((id) => mongoose.Types.ObjectId.isValid(id));
-
-exports.createExam = async (req, res, next) => {
+exports.createExam = async (req, res) => {
   try {
-    const {
-      name,
-      type,
-      subject,
-      duration,
-      totalQuestions,
-      passingMarks,
-      questions = [],
-      assignedCandidates = [],
-      startTime,
-      endTime
-    } = req.body;
-
-    if (!name || !subject || !duration || !totalQuestions || passingMarks === undefined) {
-      return res.status(400).json({
-        success: false,
-        message: "name, subject, duration, totalQuestions and passingMarks are required"
-      });
-    }
-
-    if (!validObjectIds(questions) || !validObjectIds(assignedCandidates)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid question or candidate ID"
-      });
-    }
-
-    if (questions.length !== Number(totalQuestions)) {
-      return res.status(400).json({
-        success: false,
-        message: `Exactly ${totalQuestions} question IDs are required`
-      });
-    }
-
-    const questionCount = await Question.countDocuments({
-      _id: { $in: questions }
-    });
-
-    if (questionCount !== questions.length) {
-      return res.status(400).json({
-        success: false,
-        message: "One or more question IDs do not exist"
-      });
-    }
-
-    if (assignedCandidates.length > 0) {
-      const candidateCount = await User.countDocuments({
-        _id: { $in: assignedCandidates },
-        role: "candidate"
-      });
-
-      if (candidateCount !== assignedCandidates.length) {
-        return res.status(400).json({
-          success: false,
-          message: "One or more candidate IDs are invalid"
-        });
-      }
-    }
-
-    const now = new Date();
-    let status = "draft";
-
-    if (startTime && new Date(startTime) > now) status = "upcoming";
-    if (startTime && new Date(startTime) <= now && (!endTime || new Date(endTime) > now)) status = "active";
-    if (endTime && new Date(endTime) <= now) status = "completed";
-
-    const exam = await Exam.create({
-      name,
-      type,
-      subject,
-      duration,
-      totalQuestions,
-      passingMarks,
-      questions,
-      assignedCandidates,
-      startTime,
-      endTime,
-      status,
-      createdBy: req.user._id
-    });
+    const exam = await Exam.create(req.body);
 
     res.status(201).json({
       success: true,
-      message: "Exam created",
-      exam
+      message: "Exam created successfully",
+      exam,
     });
   } catch (error) {
-    next(error);
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
-exports.getExams = async (req, res, next) => {
+exports.getExams = async (req, res) => {
   try {
-    const { search, status, subject } = req.query;
-
-    const filter = {};
-
-    if (search) filter.name = { $regex: search, $options: "i" };
-    if (status) filter.status = status;
-    if (subject) filter.subject = { $regex: subject, $options: "i" };
-
-    if (req.user.role === "candidate") {
-      filter.$or = [
-        { assignedCandidates: req.user._id },
-        { assignedCandidates: { $size: 0 } }
-      ];
-    }
-
-    const exams = await Exam.find(filter)
-      .select("-questions")
-      .populate("createdBy", "fullName email")
-      .sort({ createdAt: -1 });
+    const exams = await Exam.find().populate("questions");
 
     res.json({
       success: true,
-      count: exams.length,
-      exams
+      exams,
     });
   } catch (error) {
-    next(error);
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
-exports.getExamById = async (req, res, next) => {
+exports.getExamById = async (req, res) => {
   try {
-    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid exam ID"
-      });
-    }
-
-    const exam = await Exam.findById(req.params.id)
-      .populate({
-        path: "questions",
-        select: "questionText options subject difficulty marks negativeMarks"
-      })
-      .populate("assignedCandidates", "fullName email")
-      .populate("createdBy", "fullName email");
+    const exam = await Exam.findById(req.params.id).populate("questions");
 
     if (!exam) {
       return res.status(404).json({
         success: false,
-        message: "Exam not found"
-      });
-    }
-
-    if (
-      req.user.role === "candidate" &&
-      exam.assignedCandidates.length > 0 &&
-      !exam.assignedCandidates.some(
-        (candidate) => candidate._id.toString() === req.user._id.toString()
-      )
-    ) {
-      return res.status(403).json({
-        success: false,
-        message: "You are not assigned to this exam"
+        message: "Exam not found",
       });
     }
 
     res.json({
       success: true,
-      exam
+      exam,
     });
   } catch (error) {
-    next(error);
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
-exports.updateExam = async (req, res, next) => {
+exports.updateExam = async (req, res) => {
   try {
-    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid exam ID"
-      });
-    }
-
-    const allowed = [
-      "name", "type", "subject", "duration", "totalQuestions",
-      "passingMarks", "questions", "assignedCandidates",
-      "startTime", "endTime", "status"
-    ];
-
-    const updates = {};
-    for (const key of allowed) {
-      if (req.body[key] !== undefined) updates[key] = req.body[key];
-    }
-
-    if (updates.questions !== undefined) {
-      if (!validObjectIds(updates.questions)) {
-        return res.status(400).json({
-          success: false,
-          message: "Invalid question ID"
-        });
-      }
-
-      const count = await Question.countDocuments({
-        _id: { $in: updates.questions }
-      });
-
-      if (count !== updates.questions.length) {
-        return res.status(400).json({
-          success: false,
-          message: "One or more question IDs do not exist"
-        });
-      }
-    }
-
-    if (updates.assignedCandidates !== undefined && !validObjectIds(updates.assignedCandidates)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid candidate ID"
-      });
-    }
-
     const exam = await Exam.findByIdAndUpdate(
       req.params.id,
-      updates,
-      { new: true, runValidators: true }
+      req.body,
+      { new: true }
     );
 
-    if (!exam) {
-      return res.status(404).json({
+    res.json({
+      success: true,
+      message: "Exam updated successfully",
+      exam,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+exports.deleteExam = async (req, res) => {
+  try {
+    await Exam.findByIdAndDelete(req.params.id);
+
+    res.json({
+      success: true,
+      message: "Exam deleted successfully",
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+exports.startExam = async (req, res) => {
+  try {
+    const exam = await Exam.findById(req.params.id).populate("questions");
+
+    if (!exam || exam.status !== "active") {
+      return res.status(400).json({
         success: false,
-        message: "Exam not found"
+        message: "Exam is not active",
+      });
+    }
+
+    const alreadyAttempted = await Result.findOne({
+      candidate: req.user._id,
+      exam: exam._id,
+    });
+
+    if (alreadyAttempted) {
+      return res.status(400).json({
+        success: false,
+        message: "You have already attempted this exam",
       });
     }
 
     res.json({
       success: true,
-      message: "Exam updated",
-      exam
+      startedAt: new Date(),
+      exam,
     });
   } catch (error) {
-    next(error);
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
-exports.deleteExam = async (req, res, next) => {
+exports.submitExam = async (req, res) => {
   try {
-    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid exam ID"
-      });
-    }
+    const { answers, startedAt } = req.body;
 
-    const exam = await Exam.findByIdAndDelete(req.params.id);
+    const exam = await Exam.findById(req.params.id).populate("questions");
 
-    if (!exam) {
-      return res.status(404).json({
-        success: false,
-        message: "Exam not found"
-      });
-    }
+    let correct = 0;
+    let wrong = 0;
+    let skipped = 0;
 
-    await Attempt.deleteMany({ exam: exam._id });
+    answers.forEach((answer) => {
+      const question = exam.questions.find(
+        (q) => q._id.toString() === answer.questionId
+      );
+
+      if (!answer.selectedAnswer) skipped++;
+      else if (question.correctAnswer === answer.selectedAnswer) correct++;
+      else wrong++;
+    });
+
+    const score = correct;
+    const percentage = (score / exam.totalQuestions) * 100;
+    const passed = score >= exam.passingMarks;
+
+    const result = await Result.create({
+      candidate: req.user._id,
+      exam: exam._id,
+      answers: answers.map((a) => ({
+        question: a.questionId,
+        selectedAnswer: a.selectedAnswer,
+      })),
+      score,
+      percentage,
+      correct,
+      wrong,
+      skipped,
+      passed,
+      startedAt,
+      submittedAt: new Date(),
+    });
 
     res.json({
       success: true,
-      message: "Exam and related attempts deleted"
+      message: "Exam submitted successfully",
+      result,
     });
   } catch (error) {
-    next(error);
-  }
-};
-
-exports.startExam = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid exam ID"
-      });
-    }
-
-    const exam = await Exam.findById(id).populate(
-      "questions",
-      "questionText options subject difficulty marks negativeMarks"
-    );
-
-    if (!exam) {
-      return res.status(404).json({
-        success: false,
-        message: "Exam not found"
-      });
-    }
-
-    if (exam.status !== "active") {
-      return res.status(400).json({
-        success: false,
-        message: `Exam is ${exam.status}, not active`
-      });
-    }
-
-    if (
-      exam.assignedCandidates.length > 0 &&
-      !exam.assignedCandidates.some(
-        (candidate) => candidate.toString() === req.user._id.toString()
-      )
-    ) {
-      return res.status(403).json({
-        success: false,
-        message: "You are not assigned to this exam"
-      });
-    }
-
-    const existing = await Attempt.findOne({
-      exam: id,
-      candidate: req.user._id
-    });
-
-    if (existing) {
-      return res.status(409).json({
-        success: false,
-        message: "You have already started or submitted this exam",
-        attemptId: existing._id
-      });
-    }
-
-    const attempt = await Attempt.create({
-      exam: id,
-      candidate: req.user._id
-    });
-
-    res.status(201).json({
-      success: true,
-      message: "Exam started",
-      attemptId: attempt._id,
-      duration: exam.duration,
-      questions: exam.questions
-    });
-  } catch (error) {
-    next(error);
+    res.status(500).json({ success: false, message: error.message });
   }
 };

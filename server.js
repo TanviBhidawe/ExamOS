@@ -2,52 +2,52 @@ require("dotenv").config();
 
 const express = require("express");
 const cors = require("cors");
+
 const connectDB = require("./config/db");
 
 const authRoutes = require("./routes/authRoutes");
-const examRoutes = require("./routes/examRoutes");
+const userRoutes = require("./routes/userRoutes");
 const questionRoutes = require("./routes/questionRoutes");
-const attemptRoutes = require("./routes/attemptRoutes");
+const examRoutes = require("./routes/examRoutes");
+const resultRoutes = require("./routes/resultRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 
 const app = express();
 
-app.use(cors());
+connectDB();
+
+app.use(
+  cors({
+    origin: process.env.FRONTEND_URL,
+    credentials: true,
+  })
+);
+
 app.use(express.json());
 
 app.get("/", (req, res) => {
   res.json({
     success: true,
-    message: "ExamOS API is running",
-    version: "1.0.0"
+    message: "ExamOS Backend Running Successfully",
   });
 });
 
 app.use("/api/auth", authRoutes);
-app.use("/api/exams", examRoutes);
+app.use("/api/users", userRoutes);
 app.use("/api/questions", questionRoutes);
-app.use("/api/attempts", attemptRoutes);
+app.use("/api/exams", examRoutes);
+app.use("/api/results", resultRoutes);
 app.use("/api/admin", adminRoutes);
 
 app.use((req, res) => {
   res.status(404).json({
     success: false,
-    message: "Route not found"
-  });
-});
-
-app.use((err, req, res, next) => {
-  console.error(err);
-  res.status(err.status || 500).json({
-    success: false,
-    message: err.message || "Server error"
+    message: "Route not found",
   });
 });
 
 const PORT = process.env.PORT || 5000;
 
-connectDB().then(() => {
-  app.listen(PORT, () => {
-    console.log(`ExamOS server running on http://localhost:${PORT}`);
-  });
+app.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT}`);
 });

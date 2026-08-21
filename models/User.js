@@ -5,32 +5,36 @@ const userSchema = new mongoose.Schema(
     fullName: {
       type: String,
       required: true,
-      trim: true
+      trim: true,
     },
+
     email: {
       type: String,
       required: true,
       unique: true,
       lowercase: true,
-      trim: true
+      trim: true,
     },
+
     password: {
       type: String,
       required: true,
-      minlength: 6,
-      select: false
     },
+
     role: {
       type: String,
-      enum: ["candidate", "admin"],
-      default: "candidate"
+      enum: ["admin", "candidate"],
+      default: "candidate",
     },
+
     isActive: {
       type: Boolean,
-      default: true
-    }
+      default: true,
+    },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+  }
 );
 
 module.exports = mongoose.model("User", userSchema);

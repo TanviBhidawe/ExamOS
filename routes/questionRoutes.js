@@ -1,19 +1,21 @@
 const express = require("express");
+const router = express.Router();
+
+const protect = require("../middleware/authMiddleware");
+const roleMiddleware = require("../middleware/roleMiddleware");
+
 const {
   createQuestion,
   getQuestions,
   getQuestionById,
   updateQuestion,
-  deleteQuestion
+  deleteQuestion,
 } = require("../controllers/questionController");
-const { protect, adminOnly } = require("../middleware/authMiddleware");
 
-const router = express.Router();
-
+router.post("/", protect, roleMiddleware("admin"), createQuestion);
 router.get("/", protect, getQuestions);
 router.get("/:id", protect, getQuestionById);
-router.post("/", protect, adminOnly, createQuestion);
-router.put("/:id", protect, adminOnly, updateQuestion);
-router.delete("/:id", protect, adminOnly, deleteQuestion);
+router.put("/:id", protect, roleMiddleware("admin"), updateQuestion);
+router.delete("/:id", protect, roleMiddleware("admin"), deleteQuestion);
 
 module.exports = router;

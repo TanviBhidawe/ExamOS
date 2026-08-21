@@ -5,22 +5,22 @@ const protect = require("../middleware/authMiddleware");
 const roleMiddleware = require("../middleware/roleMiddleware");
 
 const {
-  dashboard,
-  getCandidates,
-} = require("../controllers/adminController");
+  getProfile,
+  updateProfile,
+} = require("../controllers/usercontroller");
 
 router.get(
-  "/dashboard",
+  "/profile",
   protect,
-  roleMiddleware("admin"),
-  dashboard
+  roleMiddleware("candidate"),
+  getProfile
 );
 
-router.get(
-  "/candidates",
+router.put(
+  "/profile",
   protect,
-  roleMiddleware("admin"),
-  getCandidates
+  roleMiddleware("candidate"),
+  updateProfile
 );
 
 module.exports = router;

@@ -3,55 +3,31 @@ const User = require("../models/User");
 
 const protect = async (req, res, next) => {
   try {
-    const header = req.headers.authorization;
+    let token;
 
-    if (!header || !header.startsWith("Bearer ")) {
-      return res.status(401).json({
-        success: false,
-        message: "Authentication required"
-      });
+    if (
+      req.headers.authorization &&
+      req.headers.authorization.startsWith("Bearer")
+    ) {
+      token = req.headers.authorization.split(" ")[1];
+
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+      req.user = await User.findById(decoded.id).select("-password");
+
+      return next();
     }
 
-    const token = header.split(" ")[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-    const user = await User.findById(decoded.id).select("-password");
-
-    if (!user || !user.isActive) {
-      return res.status(401).json({
-        success: false,
-        message: "User not found or inactive"
-      });
-    }
-
-    req.user = user;
-    next();
+    return res.status(401).json({
+      success: false,
+      message: "Authentication required",
+    });
   } catch (error) {
     return res.status(401).json({
       success: false,
-      message: "Invalid or expired token"
+      message: "Invalid token",
     });
   }
 };
 
-const adminOnly = (req, res, next) => {
-  if (req.user.role !== "admin") {
-    return res.status(403).json({
-      success: false,
-      message: "Admin access required"
-    });
-  }
-  next();
-};
-
-const candidateOnly = (req, res, next) => {
-  if (req.user.role !== "candidate") {
-    return res.status(403).json({
-      success: false,
-      message: "Candidate access required"
-    });
-  }
-  next();
-};
-
-module.exports = { protect, adminOnly, candidateOnly };
+module.exports = protect;
