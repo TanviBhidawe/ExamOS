@@ -18,6 +18,11 @@ const examSchema = new mongoose.Schema(
       required: true,
     },
 
+    description: {
+      type: String,
+      default: "",
+    },
+
     duration: {
       type: Number,
       required: true,
@@ -28,8 +33,23 @@ const examSchema = new mongoose.Schema(
       required: true,
     },
 
+    totalMarks: {
+      type: Number,
+      required: true,
+    },
+
     passingMarks: {
       type: Number,
+      required: true,
+    },
+
+    startTime: {
+      type: Date,
+      required: true,
+    },
+
+    endTime: {
+      type: Date,
       required: true,
     },
 

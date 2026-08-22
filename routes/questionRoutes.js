@@ -1,7 +1,9 @@
 const express = require("express");
+
 const router = express.Router();
 
-const protect = require("../middleware/authMiddleware");
+const { protect } = require("../middleware/authMiddleware");
+
 const roleMiddleware = require("../middleware/roleMiddleware");
 
 const {
@@ -12,10 +14,37 @@ const {
   deleteQuestion,
 } = require("../controllers/questionController");
 
-router.post("/", protect, roleMiddleware("admin"), createQuestion);
-router.get("/", protect, getQuestions);
-router.get("/:id", protect, getQuestionById);
-router.put("/:id", protect, roleMiddleware("admin"), updateQuestion);
-router.delete("/:id", protect, roleMiddleware("admin"), deleteQuestion);
+router.post(
+  "/",
+  protect,
+  roleMiddleware("admin"),
+  createQuestion
+);
+
+router.get(
+  "/",
+  protect,
+  getQuestions
+);
+
+router.get(
+  "/:id",
+  protect,
+  getQuestionById
+);
+
+router.put(
+  "/:id",
+  protect,
+  roleMiddleware("admin"),
+  updateQuestion
+);
+
+router.delete(
+  "/:id",
+  protect,
+  roleMiddleware("admin"),
+  deleteQuestion
+);
 
 module.exports = router;

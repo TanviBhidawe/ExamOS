@@ -11,9 +11,21 @@ const protect = async (req, res, next) => {
     ) {
       token = req.headers.authorization.split(" ")[1];
 
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      const decoded = jwt.verify(
+        token,
+        process.env.JWT_SECRET
+      );
 
-      req.user = await User.findById(decoded.id).select("-password");
+      req.user = await User.findById(decoded.id).select(
+        "-password"
+      );
+
+      if (!req.user) {
+        return res.status(401).json({
+          success: false,
+          message: "User not found",
+        });
+      }
 
       return next();
     }
@@ -30,4 +42,30 @@ const protect = async (req, res, next) => {
   }
 };
 
-module.exports = protect;
+const adminOnly = (req, res, next) => {
+  if (req.user?.role !== "admin") {
+    return res.status(403).json({
+      success: false,
+      message: "Admin access required",
+    });
+  }
+
+  next();
+};
+
+const candidateOnly = (req, res, next) => {
+  if (req.user?.role !== "candidate") {
+    return res.status(403).json({
+      success: false,
+      message: "Candidate access required",
+    });
+  }
+
+  next();
+};
+
+module.exports = {
+  protect,
+  adminOnly,
+  candidateOnly,
+};
