@@ -1,26 +1,53 @@
 const express = require("express");
+
 const router = express.Router();
 
-const { protect } = require("../middleware/authMiddleware");
-const roleMiddleware = require("../middleware/roleMiddleware");
+const {
+  protect,
+  adminOnly,
+} = require("../middleware/authMiddleware");
 
 const {
   dashboard,
   getCandidates,
+  getAdminProfile,
+  updateAdminProfile,
+  changeAdminPassword,
 } = require("../controllers/adminController");
 
 router.get(
   "/dashboard",
   protect,
-  roleMiddleware("admin"),
+  adminOnly,
   dashboard
 );
 
 router.get(
   "/candidates",
   protect,
-  roleMiddleware("admin"),
+  adminOnly,
   getCandidates
+);
+
+router.get(
+  "/profile",
+  protect,
+  adminOnly,
+  getAdminProfile
+);
+
+router.put(
+  "/profile",
+  protect,
+  adminOnly,
+  updateAdminProfile
+);
+
+router.put(
+  "/change-password",
+  protect,
+  adminOnly,
+  changeAdminPassword
 );
 
 module.exports = router;

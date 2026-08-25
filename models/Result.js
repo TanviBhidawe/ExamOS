@@ -1,3 +1,4 @@
+
 const mongoose = require("mongoose");
 
 const resultSchema = new mongoose.Schema(
@@ -14,13 +15,44 @@ const resultSchema = new mongoose.Schema(
       required: true,
     },
 
+    examSnapshot: {
+      name: {
+        type: String,
+        required: true,
+      },
+
+      subject: {
+        type: String,
+        required: true,
+      },
+
+      type: {
+        type: String,
+        default: "",
+      },
+
+      totalMarks: {
+        type: Number,
+        default: 0,
+      },
+
+      passingMarks: {
+        type: Number,
+        default: 0,
+      },
+    },
+
     answers: [
       {
         question: {
           type: mongoose.Schema.Types.ObjectId,
           ref: "Question",
         },
-        selectedAnswer: String,
+
+        selectedAnswer: {
+          type: String,
+          default: "",
+        },
       },
     ],
 
@@ -64,3 +96,4 @@ const resultSchema = new mongoose.Schema(
 );
 
 module.exports = mongoose.model("Result", resultSchema);
+

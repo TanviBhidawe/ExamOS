@@ -1,12 +1,24 @@
+
+const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
 const User = require("../models/User");
 const generateToken = require("../utils/generateToken");
 
 exports.register = async (req, res) => {
   try {
-    const { fullName, email, password, confirmPassword } = req.body;
+    const {
+      fullName,
+      email,
+      password,
+      confirmPassword,
+    } = req.body;
 
-    if (!fullName || !email || !password || !confirmPassword) {
+    if (
+      !fullName ||
+      !email ||
+      !password ||
+      !confirmPassword
+    ) {
       return res.status(400).json({
         success: false,
         message: "All fields are required",
@@ -31,7 +43,10 @@ exports.register = async (req, res) => {
       });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = await bcrypt.hash(
+      password,
+      10
+    );
 
     const user = await User.create({
       fullName,
@@ -40,7 +55,10 @@ exports.register = async (req, res) => {
       role: "candidate",
     });
 
-    const token = generateToken(user._id, user.role);
+    const token = generateToken(
+      user._id,
+      user.role
+    );
 
     res.status(201).json({
       success: true,
@@ -67,6 +85,7 @@ exports.login = async (req, res) => {
 
     const user = await User.findOne({
       email: email.toLowerCase(),
+      role: "candidate",
     });
 
     if (!user) {
@@ -76,7 +95,10 @@ exports.login = async (req, res) => {
       });
     }
 
-    const match = await bcrypt.compare(password, user.password);
+    const match = await bcrypt.compare(
+      password,
+      user.password
+    );
 
     if (!match) {
       return res.status(401).json({
@@ -85,7 +107,10 @@ exports.login = async (req, res) => {
       });
     }
 
-    const token = generateToken(user._id, user.role);
+    const token = generateToken(
+      user._id,
+      user.role
+    );
 
     res.json({
       success: true,
@@ -122,7 +147,10 @@ exports.adminLogin = async (req, res) => {
       });
     }
 
-    const match = await bcrypt.compare(password, admin.password);
+    const match = await bcrypt.compare(
+      password,
+      admin.password
+    );
 
     if (!match) {
       return res.status(401).json({
@@ -131,7 +159,10 @@ exports.adminLogin = async (req, res) => {
       });
     }
 
-    const token = generateToken(admin._id, admin.role);
+    const token = generateToken(
+      admin._id,
+      admin.role
+    );
 
     res.json({
       success: true,
@@ -152,21 +183,14 @@ exports.adminLogin = async (req, res) => {
   }
 };
 
-exports.resetPassword = async (req, res) => {
+exports.forgotPassword = async (req, res) => {
   try {
-    const { email, newPassword, confirmPassword } = req.body;
+    const { email } = req.body;
 
-    if (!email || !newPassword || !confirmPassword) {
+    if (!email) {
       return res.status(400).json({
         success: false,
-        message: "All fields are required",
-      });
-    }
-
-    if (newPassword !== confirmPassword) {
-      return res.status(400).json({
-        success: false,
-        message: "Passwords do not match",
+        message: "Email is required",
       });
     }
 
@@ -181,12 +205,105 @@ exports.resetPassword = async (req, res) => {
       });
     }
 
-    user.password = await bcrypt.hash(newPassword, 10);
+    const resetToken = crypto
+      .randomBytes(32)
+      .toString("hex");
+
+    const resetTokenHash = crypto
+      .createHash("sha256")
+      .update(resetToken)
+      .digest("hex");
+
+    user.resetPasswordToken = resetTokenHash;
+
+    user.resetPasswordExpire =
+      Date.now() + 15 * 60 * 1000;
+
     await user.save();
 
     res.json({
       success: true,
-      message: "Password Reset Successful",
+      message: "Password reset link generated",
+      resetToken,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+exports.resetPassword = async (req, res) => {
+  try {
+    const { token } = req.params;
+
+    const {
+      newPassword,
+      confirmPassword,
+    } = req.body;
+
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        message: "Reset token is required",
+      });
+    }
+
+    if (!newPassword || !confirmPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "All fields are required",
+      });
+    }
+
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "Passwords do not match",
+      });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Password must be at least 6 characters",
+      });
+    }
+
+    const resetTokenHash = crypto
+      .createHash("sha256")
+      .update(token)
+      .digest("hex");
+
+    const user = await User.findOne({
+      resetPasswordToken: resetTokenHash,
+      resetPasswordExpire: {
+        $gt: Date.now(),
+      },
+    });
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid or expired reset token",
+      });
+    }
+
+    user.password = await bcrypt.hash(
+      newPassword,
+      10
+    );
+
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpire = undefined;
+
+    await user.save();
+
+    res.json({
+      success: true,
+      message: "Password reset successful",
     });
   } catch (error) {
     res.status(500).json({
@@ -202,3 +319,134 @@ exports.me = async (req, res) => {
     user: req.user,
   });
 };
+
+exports.updateCandidateProfile = async (
+  req,
+  res
+) => {
+  try {
+    const { fullName, email } = req.body;
+
+    if (!fullName?.trim() || !email?.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Name and email are required",
+      });
+    }
+
+    if (req.user.role !== "candidate") {
+      return res.status(403).json({
+        success: false,
+        message: "Access denied",
+      });
+    }
+
+    const emailExists = await User.findOne({
+      email: email.toLowerCase().trim(),
+      _id: { $ne: req.user._id },
+    });
+
+    if (emailExists) {
+      return res.status(400).json({
+        success: false,
+        message: "Email already registered",
+      });
+    }
+
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      {
+        fullName: fullName.trim(),
+        email: email.toLowerCase().trim(),
+      },
+      {
+        new: true,
+        runValidators: true,
+      }
+    ).select("-password");
+
+    res.json({
+      success: true,
+      message: "Profile updated successfully",
+      user,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+exports.changeCandidatePassword = async (
+  req,
+  res
+) => {
+  try {
+    const {
+      currentPassword,
+      newPassword,
+    } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "All password fields are required",
+      });
+    }
+
+    if (req.user.role !== "candidate") {
+      return res.status(403).json({
+        success: false,
+        message: "Access denied",
+      });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Password must be at least 6 characters",
+      });
+    }
+
+    const user = await User.findById(req.user._id);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    const match = await bcrypt.compare(
+      currentPassword,
+      user.password
+    );
+
+    if (!match) {
+      return res.status(400).json({
+        success: false,
+        message: "Current password is incorrect",
+      });
+    }
+
+    user.password = await bcrypt.hash(
+      newPassword,
+      10
+    );
+
+    await user.save();
+
+    res.json({
+      success: true,
+      message: "Password changed successfully",
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
